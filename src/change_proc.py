@@ -2,6 +2,9 @@ import aiohttp
 import asyncio
 import json
 
+# NOTES:
+# - make this object oriented -> classes for recent changes / streams?
+
 
 async def wiki_connect():
     # establish uri and headers in accordance to wikimedia robot policy: https://wikitech.wikimedia.org/wiki/Robot_policy
@@ -14,8 +17,8 @@ async def wiki_connect():
     try:
         async with aiohttp.ClientSession(headers=headers) as session:
             async with session.get(uri) as resp:
-                # show status of request
-                print(resp.status)
+                # raise exception for non-200 codes
+                resp.raise_for_status()
 
                 # process lines, stripping event metadata and converting useful data to json
                 i = 0
@@ -29,13 +32,12 @@ async def wiki_connect():
                             try:
                                 i += 1
                                 json_data = json.loads(clean_line[6:])
-                                print(json_data["id"])
-                                print(json_data["type"])
-                                print(json_data["title"])
-                                print()
+                                for k, v in json_data.items():
+                                    print(f"{k}: {v}")
 
-                                if i > 10:
+                                if i >= 1:
                                     exit(0)
+
                             except json.JSONDecodeError:
                                 print(f"invalid JSON for line: {clean_line}")
                                 continue
