@@ -11,6 +11,8 @@ load_dotenv()
 # production-like and logical. then we create a visualization class
 # of sorts?
 
+# honestly, just get stuff working then we can refactor after
+
 r = redis.Redis(
     host=os.getenv("REDIS_HOST"),
     port=int(os.getenv("REDIS_PORT")),
