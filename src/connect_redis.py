@@ -11,7 +11,7 @@ load_dotenv()
 # production-like and logical. then we create a visualization class
 # of sorts?
 
-# honestly, just get stuff working then we can refactor after
+# create redis manager class, import into connect_redis.py and utilize it
 
 r = redis.Redis(
     host=os.getenv("REDIS_HOST"),

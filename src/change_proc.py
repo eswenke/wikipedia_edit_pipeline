@@ -34,13 +34,17 @@ async def wiki_connect():
                                 json_data = json.loads(clean_line[6:])
                                 for k, v in json_data.items():
                                     print(f"{k}: {v}")
-                                    
-                                # REDIS LOGIC GOING HERE
-                                # look at redis-py tutorials (or docs, although they are
-                                #   not super easy to read)
+
                                 # initial metrics to get started
                                 #   - bot vs human edits
                                 #   - minor vs major edits
+
+                                # create redis object and intialize connection
+                                # increment bot and edit counters
+                                # verify over a certain time period (a minute?) that counters are working
+
+                                if json_data["bot"] == "True":
+                                    r.incr("bot_edits")
 
                                 if i >= 1:
                                     exit(0)
