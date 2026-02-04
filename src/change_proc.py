@@ -1,6 +1,7 @@
 import aiohttp
 import asyncio
 import json
+import redis_manager
 
 # NOTES:
 # - make this object oriented -> classes for recent changes / streams?
@@ -40,11 +41,8 @@ async def wiki_connect():
                                 #   - minor vs major edits
 
                                 # create redis object and intialize connection
-                                # increment bot and edit counters
-                                # verify over a certain time period (a minute?) that counters are working
-
-                                if json_data["bot"] == "True":
-                                    r.incr("bot_edits")
+                                # call r.process_json(json_data)
+                                # verify that counters are working
 
                                 if i >= 1:
                                     exit(0)
