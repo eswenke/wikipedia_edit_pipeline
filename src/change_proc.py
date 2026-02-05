@@ -1,11 +1,11 @@
+from redis_manager import RedisManager
 import aiohttp
 import asyncio
 import json
 import redis
-from redis_manager import RedisManager
 
 # NOTES:
-# - make this object oriented -> classes for recent changes / streams?
+# - separate wiki_connect function into more managable, separated functions?
 
 
 async def wiki_connect():
@@ -15,6 +15,10 @@ async def wiki_connect():
         "User-Agent": "WikipediaEditPipeline/1.0 (https://github.com/eswenke; swenke.ethan.us@gmail.com) aiohttp/3.13.3",
         "Accept-Encoding": "gzip",
     }
+
+    redis_manager = RedisManager()
+    redis_manager.connect()
+    # redis_manager.flush_db() BE REALLY CAREFUL AND COGNISCENT THAT THIS IS HERE
 
     try:
         async with aiohttp.ClientSession(headers=headers) as session:
@@ -38,25 +42,12 @@ async def wiki_connect():
                                 # for k, v in json_data.items():
                                 #     print(f"{k}: {v}")
 
-                                # create redis manager object and intialize connection
-                                redis_manager = RedisManager()
-                                redis_manager.connect()
-
                                 # process the json data
                                 redis_manager.process_json(json_data)
 
                                 # process 100 events
                                 if i >= 100:
-                                    # verify that counters are working
-                                    print(f"bot edits: {redis_manager.client.get("edits:bot")}")
-                                    print(f"human edits: {redis_manager.client.get("edits:human")}")
-                                    print(f"minor edits: {redis_manager.client.get("edits:minor")}")
-                                    print(f"major edits: {redis_manager.client.get("edits:major")}")
-                                    
-                                    type_keys = redis_manager.client.keys("type:*")
-                                    print()
-                                    for key in type_keys:
-                                        print(f"{key}: {redis_manager.client.get(f"{key}")}")
+                                    redis_manager.print_metrics()
                                     exit(0)
 
                             except json.JSONDecodeError:
@@ -67,6 +58,9 @@ async def wiki_connect():
         print(f"connection failed: {e}")
     except Exception as e:
         print(f"unexpected error: {e}")
+
+    finally:
+        redis_manager.close()
 
 
 if __name__ == "__main__":
