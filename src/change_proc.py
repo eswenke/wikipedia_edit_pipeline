@@ -1,7 +1,8 @@
 import aiohttp
 import asyncio
 import json
-import redis_manager
+import redis
+from redis_manager import RedisManager
 
 # NOTES:
 # - make this object oriented -> classes for recent changes / streams?
@@ -33,18 +34,29 @@ async def wiki_connect():
                             try:
                                 i += 1
                                 json_data = json.loads(clean_line[6:])
-                                for k, v in json_data.items():
-                                    print(f"{k}: {v}")
 
-                                # initial metrics to get started
-                                #   - bot vs human edits
-                                #   - minor vs major edits
+                                # for k, v in json_data.items():
+                                #     print(f"{k}: {v}")
 
-                                # create redis object and intialize connection
-                                # call r.process_json(json_data)
-                                # verify that counters are working
+                                # create redis manager object and intialize connection
+                                redis_manager = RedisManager()
+                                redis_manager.connect()
 
-                                if i >= 1:
+                                # process the json data
+                                redis_manager.process_json(json_data)
+
+                                # process 100 events
+                                if i >= 100:
+                                    # verify that counters are working
+                                    print(f"bot edits: {redis_manager.client.get("edits:bot")}")
+                                    print(f"human edits: {redis_manager.client.get("edits:human")}")
+                                    print(f"minor edits: {redis_manager.client.get("edits:minor")}")
+                                    print(f"major edits: {redis_manager.client.get("edits:major")}")
+                                    
+                                    type_keys = redis_manager.client.keys("type:*")
+                                    print()
+                                    for key in type_keys:
+                                        print(f"{key}: {redis_manager.client.get(f"{key}")}")
                                     exit(0)
 
                             except json.JSONDecodeError:

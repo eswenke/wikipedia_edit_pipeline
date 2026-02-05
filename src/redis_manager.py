@@ -18,37 +18,40 @@ class RedisManager:
     def connect(self):
         try:
             self.client = redis.Redis(
-                host=self.host, port=self.port, user=self.user, password=self.password, decode_responses=True
+                host=self.host, port=self.port, username=self.user, password=self.password, decode_responses=True
             )
             self.client.ping()
         except redis.ConnectionError as e:
-            print(f"redis connection failed: {e}")
-        except Exception as e:
-            print(f"unexpected error connecting to redis: {e}")
+            print(f"redis connection error: {e}")
+            exit(1)
 
-        return self.client
-
-    def process_json(json_data):
+    def process_json(self, json_data):
         try:
-            if json_data["bot"] == "True":
-                self.client.incr("edits:bot")
-            elif json_data["bot"] == "False":
-                self.client.incr("edits:human")
+            # if type of event is an edit, count metrics
+            if json_data["type"] == "edit":
+                self.client.incr("type:edit")
+                if json_data["bot"] is True:
+                    self.client.incr("edits:bot")
+                elif json_data["bot"] is False:
+                    self.client.incr("edits:human")
 
-            if json_data["minor"] == "True":
-                self.client.incr("edits:minor")
-            elif json_data["minor"] == "False":
-                self.client.incr("edits:major")
+                if json_data["minor"] is True:
+                    self.client.incr("edits:minor")
+                elif json_data["minor"] is False:
+                    self.client.incr("edits:major")
+
+            # otherwise, count the number of that type of edit
+            else:
+                self.client.incr(f"type:{json_data["type"]}")
 
         except Exception as e:
             print(f"error processing JSON: {e}")
-            raise
 
-    def bot_human_count(json_data):
+    def bot_human_count(self, json_data):
         # bot edit logic function
         pass
 
-    def minor_major_count(json_data):
+    def minor_major_count(self, json_data):
         # boolean edit size function
         pass
 
