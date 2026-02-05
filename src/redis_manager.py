@@ -4,6 +4,16 @@ import os
 import json
 from datetime import datetime
 
+# NOTES:
+# at some point when we run this pipeline for more than a day, the naming convention
+# needs to change because the redis manager client will be active for more than a day,
+# but the today variable is only set upon initialization. 
+# either:
+#   1. call it in process_json so that it is called each time and is updated as such
+#   2. look up a good way to orchestrate / poll to make sure we accurately change the
+#      date for metrics when the next day starts, ideally in a way that doesn't require
+#      resetting it every call like in option 1 (just takes less resources in general)
+
 
 class RedisManager:
     def __init__(self):
@@ -13,8 +23,7 @@ class RedisManager:
         self.user = os.getenv("REDIS_USER", "default")
         self.password = os.getenv("REDIS_PASSWORD", None)
         self.client = None
-        self.today = datetime.now().strftime("%m-%d-%Y")
-
+        self.today = datetime.now().strftime("%m-%d-%Y") # check notes on this
 
     def connect(self):
         try:
@@ -27,6 +36,12 @@ class RedisManager:
             exit(1)
 
     def process_json(self, json_data):
+        # process the json data
+        # THERE ARE 4 TYPES OF EVENTS:
+        #   1. edit
+        #   2. categorize
+        #   3. log
+        #   4. new
         try:
             # if type of event is an edit, count metrics
             if json_data["type"] == "edit":
@@ -54,7 +69,7 @@ class RedisManager:
         pass
 
     def minor_major_count(self, json_data):
-        # boolean edit size function
+        # general edit size function
         pass
 
     def print_metrics(self):
@@ -67,7 +82,7 @@ class RedisManager:
         metric_keys = self.client.keys(f"{self.today}:*")
         metric_keys = set([metric.split(":")[1] for metric in metric_keys])
         for metric in metric_keys:
-            print()
+            print(f"\n=== {metric.upper()} ===")
             specific_keys = self.client.keys(f"{self.today}:{metric}:*")
             for key in specific_keys:
                 print(f"{key}: {self.client.get(f"{key}")}")
