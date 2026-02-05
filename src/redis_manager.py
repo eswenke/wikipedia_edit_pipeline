@@ -5,6 +5,9 @@ import json
 from datetime import datetime
 
 # NOTES:
+#
+# printing contains hardcoded string slicing, might need to be changed
+#
 # at some point when we run this pipeline for more than a day, the naming convention
 # needs to change because the redis manager client will be active for more than a day,
 # but the today variable is only set upon initialization. 
@@ -74,6 +77,7 @@ class RedisManager:
 
     def print_metrics(self):
         # verify that counters are working
+
         # print(f"bot edits: {self.client.get(f"{self.today}:edits:bot")}")
         # print(f"human edits: {self.client.get(f"{self.today}:edits:human")}")
         # print(f"minor edits: {self.client.get(f"{self.today}:edits:minor")}")
