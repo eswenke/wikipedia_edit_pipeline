@@ -25,8 +25,8 @@ class RedisManager:
         self.port = int(os.getenv("REDIS_PORT", 6379))
         self.user = os.getenv("REDIS_USER", "default")
         self.password = os.getenv("REDIS_PASSWORD", None)
-        self.client = None
         self.today = datetime.now().strftime("%m-%d-%Y") # check notes on this
+        self.client = None
 
     def connect(self):
         try:
@@ -65,7 +65,7 @@ class RedisManager:
 
         except Exception as e:
             print(f"error processing JSON: {e}")
-            exit(1)
+            exit(1) # NEED TO CHANGE THIS TO BE CONSISTENT
 
     def bot_human_count(self, json_data):
         # bot edit logic function

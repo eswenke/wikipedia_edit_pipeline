@@ -1,4 +1,5 @@
 from redis_manager import RedisManager
+from psql_manager import PSQLManager
 import aiohttp
 import asyncio
 import json
@@ -19,6 +20,9 @@ async def wiki_connect():
     redis_manager = RedisManager()
     redis_manager.connect()
     # redis_manager.flush_db() BE REALLY CAREFUL AND COGNISCENT THAT THIS IS HERE
+
+    psql_manager = PSQLManager()
+    psql_manager.connect()
 
     try:
         async with aiohttp.ClientSession(headers=headers) as session:
@@ -42,8 +46,11 @@ async def wiki_connect():
                                 # for k, v in json_data.items():
                                 #     print(f"{k}: {v}")
 
-                                # process the json data
+                                # process the json data with redis
                                 redis_manager.process_json(json_data)
+
+                                # process event with psql
+                                psql_manager.process_event(json_data)
 
                                 # process 100 events
                                 if i >= 100:
@@ -61,6 +68,7 @@ async def wiki_connect():
 
     finally:
         redis_manager.close()
+        psql_manager.close()
 
 
 if __name__ == "__main__":
