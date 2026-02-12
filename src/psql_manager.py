@@ -14,8 +14,10 @@ from datetime import datetime
 #   dashboard: # Streamlit? something basic with react? plotly?
 #   grafana:   # Monitoring
 
-# finish out psql manager, test locally on limited metrics, then
-# containerize everything so far
+# steps:
+# 1. download psql locally, set up a db with the GUI, test, then set up again script and test
+# 2. flesh out psql manager (connect to local db, create tables, insert raw events and metrics / views)
+# 3. download docker and set up containers for redis, psql, and the app
 
 
 class PSQLManager:
@@ -33,4 +35,17 @@ class PSQLManager:
             self.client = (self.host, self.port, self.user, self.password)
         except Exception as e:
             print(f"psql connection error: {e}")
+            exit(1)
+
+    def setup_db(self):
+        try:
+            # import psycopg2 up top
+            # connect to db
+            # create cursor
+            # execute sql file
+            # close cursor
+            # close connection
+            pass
+        except Exception as e:
+            print(f"psql setup error: {e}")
             exit(1)

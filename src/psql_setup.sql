@@ -1,0 +1,4 @@
+-- create db
+-- connect to the db
+-- create tables
+-- create views
