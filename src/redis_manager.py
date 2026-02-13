@@ -10,7 +10,7 @@ from datetime import datetime
 #
 # at some point when we run this pipeline for more than a day, the naming convention
 # needs to change because the redis manager client will be active for more than a day,
-# but the today variable is only set upon initialization. 
+# but the today variable is only set upon initialization.
 # either:
 #   1. call it in process_json so that it is called each time and is updated as such
 #   2. look up a good way to orchestrate / poll to make sure we accurately change the
@@ -25,7 +25,7 @@ class RedisManager:
         self.port = int(os.getenv("REDIS_PORT", 6379))
         self.user = os.getenv("REDIS_USER", "default")
         self.password = os.getenv("REDIS_PASSWORD", None)
-        self.today = datetime.now().strftime("%m-%d-%Y") # check notes on this
+        self.today = datetime.now().strftime("%m-%d-%Y")  # check notes on this
         self.client = None
 
     def connect(self):
@@ -38,7 +38,7 @@ class RedisManager:
             print(f"redis connection error: {e}")
             exit(1)
 
-    def process_json(self, json_data):
+    def process_event(self, json_data):
         # process the json data
         # THERE ARE 4 TYPES OF EVENTS:
         #   1. edit
@@ -61,11 +61,13 @@ class RedisManager:
 
             # otherwise, count the number of that type of edit
             else:
-                self.client.incr(f"{self.today}:type:{json_data["type"]}")
+                self.client.incr(f"{self.today}:type:{json_data['type']}")
 
         except Exception as e:
             print(f"error processing JSON: {e}")
-            exit(1) # NEED TO CHANGE THIS TO BE CONSISTENT
+            return False
+
+        return True
 
     def bot_human_count(self, json_data):
         # bot edit logic function
@@ -82,14 +84,14 @@ class RedisManager:
         # print(f"human edits: {self.client.get(f"{self.today}:edits:human")}")
         # print(f"minor edits: {self.client.get(f"{self.today}:edits:minor")}")
         # print(f"major edits: {self.client.get(f"{self.today}:edits:major")}")
-        
+
         metric_keys = self.client.keys(f"{self.today}:*")
         metric_keys = set([metric.split(":")[1] for metric in metric_keys])
         for metric in metric_keys:
             print(f"\n=== {metric.upper()} ===")
             specific_keys = self.client.keys(f"{self.today}:{metric}:*")
             for key in specific_keys:
-                print(f"{key}: {self.client.get(f"{key}")}")
+                print(f"{key}: {self.client.get(f'{key}')}")
 
     def flush_db(self):
         # flush out all db metrics

@@ -17,10 +17,12 @@ async def wiki_connect():
         "Accept-Encoding": "gzip",
     }
 
+    # connect to redis manager
     redis_manager = RedisManager()
     redis_manager.connect()
     # redis_manager.flush_db() BE REALLY CAREFUL AND COGNISCENT THAT THIS IS HERE
 
+    # connect to psql manager
     psql_manager = PSQLManager()
     psql_manager.connect()
 
@@ -47,25 +49,32 @@ async def wiki_connect():
                                 #     print(f"{k}: {v}")
 
                                 # process the json data with redis
-                                redis_manager.process_json(json_data)
+                                if not redis_manager.process_event(json_data):
+                                    print(f"failed to process event with redis: \n{json_data}")
+                                    exit(1)
 
                                 # process event with psql
-                                psql_manager.process_event(json_data)
+                                if not psql_manager.process_event(json_data):
+                                    print(f"failed to process event with psql: \n{json_data}")
+                                    exit(1)
 
                                 # process 100 events
                                 if i >= 100:
                                     redis_manager.print_metrics()
                                     exit(0)
 
+                            # catch invalid json
                             except json.JSONDecodeError:
                                 print(f"invalid JSON for line: {clean_line}")
                                 continue
 
+    # catch aiohttp session error and general exceptions
     except aiohttp.ClientError as e:
         print(f"connection failed: {e}")
     except Exception as e:
         print(f"unexpected error: {e}")
 
+    # close connections
     finally:
         redis_manager.close()
         psql_manager.close()

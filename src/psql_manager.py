@@ -2,6 +2,7 @@ import os
 from dotenv import load_dotenv
 from datetime import datetime
 import psycopg2
+import json
 
 # need psql imports
 
@@ -30,13 +31,14 @@ class PSQLManager:
         self.user = os.getenv("PSQL_USER")
         self.password = os.getenv("PSQL_PASSWORD")
         self.port = os.getenv("PSQL_PORT", "5432")
+        self.host = os.getenv("PSQL_HOST", "localhost")
         self.today = datetime.now().strftime("%m-%d-%Y")  # check notes on this
         self.conn = None
 
     def connect(self):
         try:
             self.conn = psycopg2.connect(
-                dbname=self.dbname, user=self.user, port=self.port, password=self.password
+                dbname=self.dbname, user=self.user, port=self.port, password=self.password, host=self.host
             )
         except psycopg2.Error as e:
             print(f"psql connection error: {e}")
@@ -57,20 +59,20 @@ class PSQLManager:
                     title, 
                     title_url, 
                     comment, 
-                    user, 
+                    "user", 
                     bot, 
                     wiki, 
                     minor, 
-                    length, 
                     patrolled, 
-                    log_type) 
+                    log_type,
+                    length)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
-                    json_data["id"],
+                    json_data["meta"]["id"],
                     json_data["meta"]["uri"],
-                    json_data["domain"]["domain"],
-                    json_data["dt"],
+                    json_data["meta"]["domain"],
+                    json_data["meta"]["dt"],
                     json_data["type"],
                     json_data["namespace"],
                     json_data["title"],  # during a block, the title will be the user who is blocked
@@ -80,9 +82,13 @@ class PSQLManager:
                     json_data["bot"],
                     json_data["wiki"],
                     json_data.get("minor"),
-                    json_data.get("length"),
                     json_data.get("patrolled"),
                     json_data.get("log_type"),
+                    (  # length change (jsonb data type being weird in psql, made it an int for now)
+                        json_data.get("length").get("new") - json_data.get("length").get("old", 0)
+                        if "length" in json_data
+                        else 0
+                    ),
                 ),
             )
 
