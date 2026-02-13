@@ -87,7 +87,7 @@ class PSQLManager:
                     (  # length change (jsonb data type being weird in psql, made it an int for now)
                         json_data.get("length").get("new") - json_data.get("length").get("old", 0)
                         if "length" in json_data
-                        else 0
+                        else None
                     ),
                 ),
             )
