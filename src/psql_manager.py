@@ -17,8 +17,21 @@ import json
 
 # steps:
 # 1. [DONE*] download psql locally, set up a db with the GUI, test, *then set up again script and test
-# 2. [DONE*]flesh out psql manager (connect to local db, create tables, insert raw events and *metrics / views)
-# 3. [IN PROGRESS]download docker and set up containers for redis, psql, and the app
+# 2. [DONE] flesh out psql manager (connect to local db, create tables, insert raw events)
+# 3. [IN PROGRESS] flesh out redis and psql analysis with different metrics / views for later visualization
+#   - metrics / views:
+#       - user activity
+#       - time windowed aggregations
+#       - size of edit (length)
+#       - bot vs. human statistics (length, frequency, types, etc.)
+#       - activity spikes
+#       - quality (patrolled, length, bot/human, repeat editor patterns)
+#       - edit velocity
+#       - top wikis / categories / users
+#   - make sure I know WHY im using redis / psql for different analysis. latency? data structure compatability? perfomance?
+#   i should be able to explain each decision for why i track certain data with what. dig into how and why things work. then
+#   write it down in wiki pipeline doc
+# 3. [IN PROGRESS] download docker and set up containers for redis, psql, and the app
 
 # NEED TO BE CONSISTENT WITH ERROR HANDLING
 
@@ -59,12 +72,12 @@ class PSQLManager:
                     title_url, 
                     comment, 
                     "user", 
-                    bot, 
                     wiki, 
                     minor, 
                     patrolled, 
                     log_type,
-                    length)
+                    length,
+                    bot)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
@@ -78,7 +91,6 @@ class PSQLManager:
                     json_data["title_url"],
                     json_data["comment"],
                     json_data["user"],
-                    json_data["bot"],
                     json_data["wiki"],
                     json_data.get("minor"),
                     json_data.get("patrolled"),
@@ -88,6 +100,7 @@ class PSQLManager:
                         if "length" in json_data
                         else None
                     ),
+                    json_data["bot"],
                 ),
             )
 

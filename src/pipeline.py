@@ -58,7 +58,7 @@ async def wiki_connect():
                                     exit(1)
 
                                 # process 100 events
-                                if i >= 100:
+                                if i >= 1000:
                                     psql_manager.print_events()
                                     redis_manager.print_metrics("today")
                                     redis_manager.print_metrics("all")

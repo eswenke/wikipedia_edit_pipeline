@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS raw_events (
     title_url TEXT NOT NULL,
     comment TEXT NOT NULL,
     "user" TEXT NOT NULL,
-    bot TEXT NOT NULL,
+    bot BOOLEAN NOT NULL,
     wiki TEXT NOT NULL,
     minor BOOLEAN,
     patrolled TEXT,
