@@ -45,6 +45,7 @@ class RedisManager:
         #   2. categorize
         #   3. log
         #   4. new
+        
         try:
             # if type of event is an edit, count metrics
             if json_data["type"] == "edit":

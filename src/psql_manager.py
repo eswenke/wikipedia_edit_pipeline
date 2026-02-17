@@ -16,9 +16,9 @@ import json
 #   grafana:   # Monitoring
 
 # steps:
-# 1. download psql locally, set up a db with the GUI, test, then set up again script and test
-# 2. flesh out psql manager (connect to local db, create tables, insert raw events and metrics / views)
-# 3. download docker and set up containers for redis, psql, and the app
+# 1. [DONE*] download psql locally, set up a db with the GUI, test, *then set up again script and test
+# 2. [DONE*]flesh out psql manager (connect to local db, create tables, insert raw events and *metrics / views)
+# 3. [IN PROGRESS]download docker and set up containers for redis, psql, and the app
 
 # NEED TO BE CONSISTENT WITH ERROR HANDLING
 
