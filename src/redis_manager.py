@@ -77,30 +77,55 @@ class RedisManager:
         # general edit size function
         pass
 
-    def print_metrics(self):
-        # verify that counters are working
+    def print_metrics(self, option):
+        if self.client:
+            if option == "today":
+                metric_keys = self.client.keys(f"{self.today}:*")
+                metric_keys = set([metric.split(":")[1] for metric in metric_keys])
+                for metric in metric_keys:
+                    print(f"\n=== {metric.upper()} ===")
+                    specific_keys = self.client.keys(f"{self.today}:{metric}:*")
+                    for key in specific_keys:
+                        print(f"{key}: {self.client.get(f'{key}')}")
 
-        # print(f"bot edits: {self.client.get(f"{self.today}:edits:bot")}")
-        # print(f"human edits: {self.client.get(f"{self.today}:edits:human")}")
-        # print(f"minor edits: {self.client.get(f"{self.today}:edits:minor")}")
-        # print(f"major edits: {self.client.get(f"{self.today}:edits:major")}")
+            elif option == "all":
+                # might not be the most efficient way to do this... consider changing instead of going from each date
+                aggregates = {}
+                all_keys = self.client.keys("*:*:*")
+                dates = set([key.split(":")[0] for key in all_keys])
 
-        metric_keys = self.client.keys(f"{self.today}:*")
-        metric_keys = set([metric.split(":")[1] for metric in metric_keys])
-        for metric in metric_keys:
-            print(f"\n=== {metric.upper()} ===")
-            specific_keys = self.client.keys(f"{self.today}:{metric}:*")
-            for key in specific_keys:
-                print(f"{key}: {self.client.get(f'{key}')}")
+                for date in sorted(dates):
+                    # sum edits metrics
+                    edit_keys = self.client.keys(f"{date}:edits:*")
+                    if edit_keys:
+                        for key in edit_keys:
+                            aggregates[f"edits:{key.split(":")[2]}"] = aggregates.get(f"edits:{key.split(":")[2]}", 0) + int(self.client.get(key))
+
+                    # sum type metrics
+                    type_keys = self.client.keys(f"{date}:type:*")
+                    if type_keys:
+                        for key in type_keys:
+                            aggregates[f"type:{key.split(":")[2]}"] = aggregates.get(f"type:{key.split(":")[2]}", 0) + int(self.client.get(key))
+
+                print("\n=== ALL TIME ===")
+                for k, v in aggregates.items():
+                    print(f"{k}: {v}")
+
+            else:
+                print(f"invalid option: {option}")
+                print(f"usage: print_metrics(<'today'>|<'all'>)")
+        else:
+            print("error: not connected to redis db")
 
     def flush_db(self):
         # flush out all db metrics
         try:
+            self.connect()
             self.client.flushdb()
             print("redis db flushed successfully")
+
+            self.client.close()
         except Exception as e:
             print(f"error flushing redis db: {e}")
+            self.client.close()
             exit(1)
-
-    def close(self):
-        self.client.close()

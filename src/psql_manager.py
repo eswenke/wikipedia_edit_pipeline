@@ -4,7 +4,6 @@ from datetime import datetime
 import psycopg2
 import json
 
-# need psql imports
 
 # gonna end up containerizing everything, maybe start out with
 # just redis, psql, and the python app. full services yaml will
@@ -107,17 +106,69 @@ class PSQLManager:
 
         return True
 
+    def print_events(self):
+        # print out the number of raw events inserted in raw_events table
+        try:
+            if self.conn:
+                cur = self.conn.cursor()
+                cur.execute("SELECT COUNT(*) FROM raw_events")
+                count = cur.fetchone()[0]
+                print("\n=== CHANGE EVENTS ===")
+                print(f"total: {count}")
+                cur.close()
+            else:
+                print("error: not connected to psql db")
+                return
+        except Exception as e:
+            print(f"error getting event count: {e}")
+        finally:
+            if self.conn:
+                self.conn.close()
+
     def setup_db(self):
+        # will finish this when containerizing
+        # current connect() assumes a created db and errors if not, so the current logic will not work
+        # container will first assume there is none, so should check and then create if not
+        return
+
         try:
             # connect to db
+            self.connect()
+
             # create cursor
+            cur = self.conn.cursor()
+
             # execute sql file
+            with open("psql_setup.sql", "r") as f:
+                cur.execute(f.read())
+
+            # commit
+            self.conn.commit()
+
             # close cursor
+            cur.close()
+
             # close connection
-            pass
+            self.conn.close()
+
         except Exception as e:
-            print(f"psql setup error: {e}")
+            # rollback in case of error
+            print(f"psql db setup error: {e}")
+            self.conn.rollback()
+            self.conn.close()
             exit(1)
 
-    def close(self):
-        self.conn.close()
+    def truncate_db(self):
+        try:
+            self.connect()
+            cur = self.conn.cursor()
+            cur.execute("TRUNCATE TABLE raw_events")
+            self.conn.commit()
+            print("raw_events table truncated successfully")
+
+            cur.close()
+            self.conn.close()
+        except Exception as e:
+            print(f"error truncating raw_events table: {e}")
+            self.conn.close()
+            exit(1)

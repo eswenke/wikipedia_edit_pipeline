@@ -20,7 +20,6 @@ async def wiki_connect():
     # connect to redis manager
     redis_manager = RedisManager()
     redis_manager.connect()
-    # redis_manager.flush_db() BE REALLY CAREFUL AND COGNISCENT THAT THIS IS HERE
 
     # connect to psql manager
     psql_manager = PSQLManager()
@@ -60,8 +59,10 @@ async def wiki_connect():
 
                                 # process 100 events
                                 if i >= 100:
-                                    redis_manager.print_metrics()
-                                    exit(0)
+                                    psql_manager.print_events()
+                                    redis_manager.print_metrics("today")
+                                    redis_manager.print_metrics("all")
+                                    return
 
                             # catch invalid json
                             except json.JSONDecodeError:
@@ -76,8 +77,8 @@ async def wiki_connect():
 
     # close connections
     finally:
-        redis_manager.close()
-        psql_manager.close()
+        redis_manager.client.close()
+        psql_manager.conn.close()
 
 
 if __name__ == "__main__":
