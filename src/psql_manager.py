@@ -156,17 +156,30 @@ class PSQLManager:
 
     def truncate_db(self):
         """Remove all rows from raw_events."""
+        cur = None
         try:
             self.connect()
             cur = self.conn.cursor()
+            # avoid hanging indefinitely if another session is using raw_events
+            cur.execute("SET lock_timeout = '5s'")
             cur.execute("TRUNCATE TABLE raw_events")
             self.conn.commit()
             print("raw_events table truncated successfully")
+            return True
 
-            cur.close()
-            self.conn.close()
         except Exception as e:
-            print(f"error truncating raw_events table: {e}")
+            if self.conn:
+                self.conn.rollback()
+
+            if getattr(e, "pgcode", None) == "55P03":
+                print(
+                    "could not truncate raw_events: table is busy/locked. stop pipeline and streamlit, then retry."
+                )
+            else:
+                print(f"error truncating raw_events table: {e}")
+            return False
+        finally:
+            if cur:
+                cur.close()
             if self.conn:
                 self.conn.close()
-            exit(1)

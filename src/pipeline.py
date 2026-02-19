@@ -4,6 +4,7 @@ import aiohttp
 import asyncio
 import json
 import time
+import random
 
 """
 Main Wikimedia stream ingestion pipeline.
@@ -39,7 +40,6 @@ async def wiki_connect(run_seconds, retention_hours):
 
     # stop processing once the requested runtime window has passed
     deadline = time.monotonic() + run_seconds
-    reconnect_delay_seconds = 2
     i = 0
 
     while time.monotonic() < deadline:
@@ -90,6 +90,13 @@ async def wiki_connect(run_seconds, retention_hours):
         except (aiohttp.ClientError, asyncio.TimeoutError) as e:
             if time.monotonic() >= deadline:
                 break
+
+            reconnect_delay_seconds = random.randint(2, 10)
+            # in case of rate limiting / backoff, per wiki sse stream policy
+            if getattr(e, "status", None) == 429:
+                retry_after = e.headers.get("Retry-After") if hasattr(e, "headers") else None
+                reconnect_delay_seconds = int(retry_after) if retry_after else reconnect_delay_seconds
+
             print(f"connection issue: {e}. reconnecting in {reconnect_delay_seconds}s...")
             await asyncio.sleep(reconnect_delay_seconds)
             continue
@@ -104,7 +111,7 @@ async def wiki_connect(run_seconds, retention_hours):
         redis_manager.print_metrics("today")
         redis_manager.print_metrics("1h")
         redis_manager.print_metrics("5m")
-        # redis_manager.print_metrics("all") # retention is 6 hours, not necessary as of now
+        # redis_manager.print_metrics("all") # retention is in hours, not necessary as of now
     except Exception as e:
         print(f"error printing final metrics: {e}")
 
@@ -115,6 +122,6 @@ async def wiki_connect(run_seconds, retention_hours):
 
 
 if __name__ == "__main__":
-    RUN_SECONDS = 3600  # 1 hour = 3600 seconds
-    RETENTION_HOURS = 6  # keep raw events for 6 hours
+    RUN_SECONDS = 7200  # 8 hours = 28800 seconds
+    RETENTION_HOURS = 8  # keep raw events for 6 hours
     asyncio.run(wiki_connect(RUN_SECONDS, RETENTION_HOURS))

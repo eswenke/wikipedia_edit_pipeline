@@ -188,7 +188,7 @@ class RedisManager:
                 if one_hour_total > 0:
                     baseline_five_min = one_hour_total / 12
                     spike_score = five_min_total / baseline_five_min if baseline_five_min > 0 else 0
-                    print(f"spike_score_5m_vs_1h_baseline: {spike_score:.2f}x")
+                    print(f"\nspike_score_5m_vs_1h_baseline: {spike_score:.2f}x\n")
 
             elif option == "1h":
                 aggregates = aggregate_window(60)
