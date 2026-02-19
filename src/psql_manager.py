@@ -2,52 +2,24 @@ import os
 from dotenv import load_dotenv
 from datetime import datetime
 import psycopg2
-import json
-
-
-# gonna end up containerizing everything, maybe start out with
-# just redis, psql, and the python app. full services yaml will
-# probably look like this:
-# services:
-#   postgres:  # Database
-#   redis:     # Cache
-#   app:       # The pipeline
-#   dashboard: # Streamlit? something basic with react? plotly?
-#   grafana:   # Monitoring
-
-# steps:
-# 1. [DONE*] download psql locally, set up a db with the GUI, test, *then set up again script and test
-# 2. [DONE] flesh out psql manager (connect to local db, create tables, insert raw events)
-# 3. [IN PROGRESS] flesh out redis and psql analysis with different metrics / views for later visualization
-#   - metrics / views:
-#       - user activity
-#       - time windowed aggregations
-#       - size of edit (length)
-#       - bot vs. human statistics (length, frequency, types, etc.)
-#       - activity spikes
-#       - quality (patrolled, length, bot/human, repeat editor patterns)
-#       - edit velocity
-#       - top wikis / categories / users
-#   - make sure I know WHY im using redis / psql for different analysis. latency? data structure compatability? perfomance?
-#   i should be able to explain each decision for why i track certain data with what. dig into how and why things work. then
-#   write it down in wiki pipeline doc
-# 3. [IN PROGRESS] download docker and set up containers for redis, psql, and the app
-
-# NEED TO BE CONSISTENT WITH ERROR HANDLING
 
 
 class PSQLManager:
+    """Manages PostgreSQL connection, raw-event persistence, and retention tasks."""
+
     def __init__(self):
+        """Load PostgreSQL connection settings from environment variables."""
         load_dotenv()
         self.dbname = os.getenv("PSQL_DBNAME")
         self.user = os.getenv("PSQL_USER")
         self.password = os.getenv("PSQL_PASSWORD")
         self.port = os.getenv("PSQL_PORT", "5432")
         self.host = os.getenv("PSQL_HOST", "localhost")
-        self.today = datetime.now().strftime("%m-%d-%Y")  # check notes on this
+        self.today = datetime.now().strftime("%m-%d-%Y")
         self.conn = None
 
     def connect(self):
+        """Open a PostgreSQL connection using configured credentials."""
         try:
             self.conn = psycopg2.connect(
                 dbname=self.dbname, user=self.user, port=self.port, password=self.password, host=self.host
@@ -57,19 +29,18 @@ class PSQLManager:
             exit(1)
 
     def process_event(self, json_data):
+        """Insert one Wikimedia event into raw_events."""
         try:
             cur = self.conn.cursor()
             cur.execute(
                 """
                 INSERT INTO raw_events 
                     (id, 
-                    uri, 
                     domain, 
                     dt, 
                     type, 
                     namespace, 
                     title, 
-                    title_url, 
                     comment, 
                     "user", 
                     wiki, 
@@ -78,29 +49,27 @@ class PSQLManager:
                     log_type,
                     length,
                     bot)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
-                    json_data["meta"]["id"],
-                    json_data["meta"]["uri"],
-                    json_data["meta"]["domain"],
-                    json_data["meta"]["dt"],
-                    json_data["type"],
-                    json_data["namespace"],
-                    json_data["title"],  # during a block, the title will be the user who is blocked
-                    json_data["title_url"],
-                    json_data["comment"],
-                    json_data["user"],
-                    json_data["wiki"],
+                    json_data.get("meta", {}).get("id"),
+                    json_data.get("meta", {}).get("domain"),
+                    json_data.get("meta", {}).get("dt"),
+                    json_data.get("type"),
+                    json_data.get("namespace"),
+                    json_data.get("title"),
+                    json_data.get("comment"),
+                    json_data.get("user"),
+                    json_data.get("wiki"),
                     json_data.get("minor"),
                     json_data.get("patrolled"),
                     json_data.get("log_type"),
-                    (  # length change (jsonb data type being weird in psql, made it an int for now)
+                    (  # store edit size delta when length object is present
                         json_data.get("length").get("new") - json_data.get("length").get("old", 0)
                         if "length" in json_data
                         else None
                     ),
-                    json_data["bot"],
+                    json_data.get("bot"),
                 ),
             )
 
@@ -120,7 +89,7 @@ class PSQLManager:
         return True
 
     def print_events(self):
-        # print out the number of raw events inserted in raw_events table
+        """Print total count of rows currently stored in raw_events."""
         try:
             if self.conn:
                 cur = self.conn.cursor()
@@ -138,40 +107,55 @@ class PSQLManager:
             if self.conn:
                 self.conn.close()
 
+    def prune_old_raw_events(self, retention_hours):
+        """Delete raw_events rows older than retention_hours."""
+        try:
+            if not self.conn:
+                print("error: not connected to psql db")
+                return False
+
+            cur = self.conn.cursor()
+            cur.execute(
+                """
+                DELETE FROM raw_events
+                WHERE dt < NOW() - (%s * INTERVAL '1 hour')
+                """,
+                (retention_hours,),
+            )
+            deleted_rows = cur.rowcount
+            self.conn.commit()
+            cur.close()
+            print(f"pruned old raw events: {deleted_rows} rows removed")
+            return True
+
+        except Exception as e:
+            print(f"error pruning old raw events: {e}")
+            self.conn.rollback()
+            return False
+
     def setup_db(self):
-        # will finish this when containerizing
-        # current connect() assumes a created db and errors if not, so the current logic will not work
-        # container will first assume there is none, so should check and then create if not
+        """Placeholder for database bootstrap workflow."""
         return
 
         try:
-            # connect to db
             self.connect()
-
-            # create cursor
             cur = self.conn.cursor()
 
-            # execute sql file
+            # Execute schema script against the currently connected database.
             with open("psql_setup.sql", "r") as f:
                 cur.execute(f.read())
-
-            # commit
             self.conn.commit()
-
-            # close cursor
             cur.close()
-
-            # close connection
             self.conn.close()
 
         except Exception as e:
-            # rollback in case of error
             print(f"psql db setup error: {e}")
             self.conn.rollback()
             self.conn.close()
             exit(1)
 
     def truncate_db(self):
+        """Remove all rows from raw_events."""
         try:
             self.connect()
             cur = self.conn.cursor()
@@ -183,5 +167,6 @@ class PSQLManager:
             self.conn.close()
         except Exception as e:
             print(f"error truncating raw_events table: {e}")
-            self.conn.close()
+            if self.conn:
+                self.conn.close()
             exit(1)

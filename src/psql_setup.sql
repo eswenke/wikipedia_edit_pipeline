@@ -1,33 +1,36 @@
--- create database if needed
-CREATE DATABASE IF NOT EXISTS wikipedia_events;
+-- psql note:
+--   CREATE DATABASE IF NOT EXISTS is not supported
+--   create the DB once from psql/pgAdmin, then run this script
+--   or, drop the db if it exists, then create it.
 
--- connect to wiki analytics regardless, no error thrown if already connected
+DROP DATABASE IF EXISTS wikipedia_events
+CREATE DATABASE wikipedia_events
+
+-- connect to the target database before creating schema objects
 \c wikipedia_events
 
--- create raw_events table
+-- store raw Wikimedia events used by pipeline and analytics
 CREATE TABLE IF NOT EXISTS raw_events (
     id TEXT PRIMARY KEY,
-    uri TEXT NOT NULL,
-    domain TEXT NOT NULL,
+    domain TEXT,
     dt TIMESTAMP WITH TIME ZONE NOT NULL,
-    "type" TEXT NOT NULL,
-    "namespace" INTEGER NOT NULL,
-    title TEXT NOT NULL,
-    title_url TEXT NOT NULL,
-    comment TEXT NOT NULL,
-    "user" TEXT NOT NULL,
-    bot BOOLEAN NOT NULL,
-    wiki TEXT NOT NULL,
+    type TEXT,
+    namespace INTEGER,
+    title TEXT,
+    comment TEXT,
+    "user" TEXT,
+    bot BOOLEAN,
+    wiki TEXT,
     minor BOOLEAN,
     patrolled TEXT,
     log_type TEXT,
-    length_change INTEGER,
+    length INTEGER
 );
 
--- create indexes for performance (TBD)
+-- indexes for common time-bounded and grouped analytics queries
+CREATE INDEX IF NOT EXISTS idx_raw_events_dt ON raw_events (dt);
+CREATE INDEX IF NOT EXISTS idx_raw_events_user_dt ON raw_events ("user", dt);
+CREATE INDEX IF NOT EXISTS idx_raw_events_type_dt ON raw_events (type, dt);
+CREATE INDEX IF NOT EXISTS idx_raw_events_wiki_dt ON raw_events (wiki, dt);
 
-
--- create views for common queries (TBD)
-
-
--- Create view for hourly metrics (TBD)
+-- views can be added here as analytics requirements solidify
