@@ -114,6 +114,7 @@ class PSQLManager:
                 print("error: not connected to psql db")
                 return False
 
+            # to prevent local psql storage blow up accidentally
             cur = self.conn.cursor()
             cur.execute(
                 """
@@ -171,6 +172,7 @@ class PSQLManager:
             if self.conn:
                 self.conn.rollback()
 
+            # inspect error, find out if table is locked.
             if getattr(e, "pgcode", None) == "55P03":
                 print(
                     "could not truncate raw_events: table is busy/locked. stop pipeline and streamlit, then retry."

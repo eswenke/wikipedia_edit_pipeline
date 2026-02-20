@@ -28,12 +28,13 @@ CREATE TABLE IF NOT EXISTS raw_events (
 );
 
 -- indexes for common time-bounded and grouped analytics queries
+-- run explain to analyze index speedups TBD
 CREATE INDEX IF NOT EXISTS idx_raw_events_dt ON raw_events (dt);
 CREATE INDEX IF NOT EXISTS idx_raw_events_user_dt ON raw_events ("user", dt);
 CREATE INDEX IF NOT EXISTS idx_raw_events_type_dt ON raw_events (type, dt);
 CREATE INDEX IF NOT EXISTS idx_raw_events_wiki_dt ON raw_events (wiki, dt);
 
--- views can be added here as analytics requirements solidify
+-- views can be added here as needed
 
 
 -- REMOVE BLOCKERS IF TRUNCATE LOCKS

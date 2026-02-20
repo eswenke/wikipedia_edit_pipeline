@@ -1,3 +1,6 @@
+-- FILE FOR SAVING SOME SQL QUERIES
+
+-- general select
 SELECT * FROM raw_events LIMIT 100;
 
 -- events per minute (based on interval in time series)

@@ -19,9 +19,11 @@ import pandas as pd
 
 class PSQLAnalytics:
     def __init__(self, psql_manager):
+        """Store a connected PSQLManager used to execute analytics queries."""
         self.psql = psql_manager
 
     def _run_query(self, query, params=None):
+        """Execute a SQL query and return results as a pandas DataFrame."""
         if not self.psql.conn:
             raise RuntimeError("psql connection is not initialized")
 
@@ -32,7 +34,8 @@ class PSQLAnalytics:
         cur.close()
         return pd.DataFrame(rows, columns=columns)
 
-    def _top_users_per_minute(self):
+    def top_users_per_minute_today(self):
+        """Return per-minute event counts by user for the current day."""
         query = """
             SELECT
                 date_trunc('minute', dt) AS minute_ts,
@@ -46,10 +49,8 @@ class PSQLAnalytics:
         """
         return self._run_query(query)
 
-    def top_users_per_minute_today(self):
-        return self._top_users_per_minute()
-
     def top_users_today(self, limit=10, user_type="all"):
+        """Return top users for today, optionally filtered by bot/human segment."""
         user_type = (user_type or "all").lower()
         if user_type not in {"all", "bot", "human"}:
             user_type = "all"
@@ -72,21 +73,8 @@ class PSQLAnalytics:
         """
         return self._run_query(query, (user_type, user_type, user_type, limit))
 
-    def _top_wikis(self):
-        query = """
-            SELECT
-                wiki,
-                COUNT(*) AS event_count
-            FROM raw_events
-            WHERE wiki IS NOT NULL
-              AND dt::date = CURRENT_DATE
-            GROUP BY wiki
-            ORDER BY event_count DESC
-            LIMIT 10;
-        """
-        return self._run_query(query)
-
     def top_wikis_today(self, limit=10):
+        """Return top wikis by event volume for the current day."""
         query = """
             SELECT
                 wiki,
@@ -100,30 +88,8 @@ class PSQLAnalytics:
         """
         return self._run_query(query, (limit,))
 
-    def _gap_filled_time_series(self):
-        # analysis on missed minutes over a time period
-        # analysis on uptime of the pipeline
-        # for visualization purposes bc we need each minute?
-        query = """
-            WITH minutes AS (
-                SELECT generate_series(
-                    date_trunc('minute', now() - (%s * interval '1 hour')),
-                    date_trunc('minute', now()),
-                    interval '1 minute'
-                ) AS minutes_ts
-            )
-            SELECT
-                m.minutes_ts,
-                COALESCE(count(r.id), 0) AS events
-            FROM minutes m
-            LEFT JOIN raw_events r
-                ON date_trunc('minute', r.dt) = m.minutes_ts
-            GROUP BY m.minutes_ts
-            ORDER BY m.minutes_ts;
-        """
-        return self._run_query(query, (1,))
-
     def gap_filled_time_series(self, window_hours=1):
+        """Return a gap-filled minute time series for the requested hour window."""
         query = """
             WITH minutes AS (
                 SELECT generate_series(
@@ -143,7 +109,8 @@ class PSQLAnalytics:
         """
         return self._run_query(query, (window_hours,))
 
-    def _event_size_distribution(self):
+    def event_size_distribution(self):
+        """Return average event size for all, bot, and human edits."""
         query = """
             SELECT
                 ROUND(AVG("length"), 2) AS all_avg_length,
@@ -154,10 +121,8 @@ class PSQLAnalytics:
         """
         return self._run_query(query)
 
-    def event_size_distribution(self):
-        return self._event_size_distribution()
-
-    def _event_type_distribution(self):
+    def event_type_distribution_today(self):
+        """Return today's event-type counts and percentages."""
         query = """
             SELECT
                 "type",
@@ -171,13 +136,8 @@ class PSQLAnalytics:
         """
         return self._run_query(query)
 
-    def patrolled_bot_distribution_today(self):
-        return self._patrolled_bot_distribution()
-
-    def event_type_distribution_today(self):
-        return self._event_type_distribution()
-
-    def _wiki_event_type_distribution(self):
+    def wiki_event_type_distribution_today(self):
+        """Return per-wiki totals with type-specific counts for today."""
         query = """
             SELECT
                 wiki,
@@ -194,10 +154,8 @@ class PSQLAnalytics:
         """
         return self._run_query(query)
 
-    def wiki_event_type_distribution_today(self):
-        return self._wiki_event_type_distribution()
-
-    def _patrolled_bot_distribution(self):
+    def patrolled_bot_distribution_today(self):
+        """Return patrolled vs unpatrolled counts split by bot/human for today."""
         query = """
             SELECT
                 CASE
@@ -217,16 +175,17 @@ class PSQLAnalytics:
         return self._run_query(query)
 
     def print_sql_analytics(self):
+        """Print a sample of each analytics DataFrame for local verification."""
         # master print function to test in pipeline.py with
         metric_frames = {
-            "top_users_per_minute": self._top_users_per_minute(),
+            "top_users_per_minute": self.top_users_per_minute_today(),
             "top_users_today": self.top_users_today(),
             "top_wikis_today": self.top_wikis_today(),
             "gap_filled_time_series": self.gap_filled_time_series(),
-            "event_size_distribution": self._event_size_distribution(),
-            "event_type_distribution": self._event_type_distribution(),
-            "wiki_event_type_distribution": self._wiki_event_type_distribution(),
-            "patrolled_bot_distribution": self._patrolled_bot_distribution(),
+            "event_size_distribution": self.event_size_distribution(),
+            "event_type_distribution": self.event_type_distribution_today(),
+            "wiki_event_type_distribution": self.wiki_event_type_distribution_today(),
+            "patrolled_bot_distribution": self.patrolled_bot_distribution_today(),
         }
 
         for name, df in metric_frames.items():
@@ -234,4 +193,5 @@ class PSQLAnalytics:
             if df.empty:
                 print("no rows")
             else:
+                # print 20 rows without 0,1,2... index column
                 print(df.head(20).to_string(index=False))

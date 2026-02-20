@@ -66,6 +66,7 @@ async def wiki_connect(run_seconds, retention_hours):
                                     i += 1
                                     json_data = json.loads(clean_line[6:])
 
+                                    # edge case change events that don't match expected format
                                     if "type" not in json_data or "meta" not in json_data:
                                         continue
 
@@ -87,6 +88,7 @@ async def wiki_connect(run_seconds, retention_hours):
                                     print(f"invalid JSON for line: {clean_line}")
                                     continue
 
+        # sse connection drop, happens every so often. reconnect to continue event parsing
         except (aiohttp.ClientError, asyncio.TimeoutError) as e:
             if time.monotonic() >= deadline:
                 break
@@ -122,6 +124,6 @@ async def wiki_connect(run_seconds, retention_hours):
 
 
 if __name__ == "__main__":
-    RUN_SECONDS = 7200  # 8 hours = 28800 seconds
-    RETENTION_HOURS = 8  # keep raw events for 6 hours
+    RUN_SECONDS = 360
+    RETENTION_HOURS = 6  # keep raw events for 6 hours
     asyncio.run(wiki_connect(RUN_SECONDS, RETENTION_HOURS))

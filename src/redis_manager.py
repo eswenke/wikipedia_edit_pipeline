@@ -41,18 +41,19 @@ class RedisManager:
         if metric_name is None:
             return
 
+        # gather necessary key info
         today = self._get_today()
         minute_bucket = self._get_minute_bucket()
         minute_key = f"minute:{minute_bucket}:{metric_group}:{metric_name}"
 
+        # set up pipeline to reduce network travelling
         pipe = self.client.pipeline()
-        # day-level metrics
-        pipe.incr(f"{today}:{metric_group}:{metric_name}")
-        # all-time metrics
-        pipe.incr(f"all:{metric_group}:{metric_name}")
-        # rolling-window metrics
-        pipe.incr(minute_key)
-        pipe.expire(minute_key, self.minute_ttl_seconds)
+        pipe.incr(f"{today}:{metric_group}:{metric_name}")  # day level metrics
+        pipe.incr(
+            f"all:{metric_group}:{metric_name}"
+        )  # all time metrics, not necesary with limited local storage atm
+        pipe.incr(minute_key)  # rolling window metrics via minute key
+        pipe.expire(minute_key, self.minute_ttl_seconds)  # set expiration for rolling window metrics
         pipe.execute()
 
     def _increment_top_user(self, username):
@@ -60,15 +61,17 @@ class RedisManager:
         if not username:
             return
 
+        # gather necessary key info
         today = self._get_today()
         minute_bucket = self._get_minute_bucket()
         minute_key = f"top_users:minute:{minute_bucket}"
 
+        # set up pipeline to reduce network travelling
         pipe = self.client.pipeline()
-        pipe.zincrby(f"{today}:top_users", 1, username)
-        pipe.zincrby("all:top_users", 1, username)
-        pipe.zincrby(minute_key, 1, username)
-        pipe.expire(minute_key, self.top_users_minute_ttl_seconds)
+        pipe.zincrby(f"{today}:top_users", 1, username)  # day level metrics
+        pipe.zincrby("all:top_users", 1, username)  # all time metrics
+        pipe.zincrby(minute_key, 1, username)  # rolling window metrics via minute key
+        pipe.expire(minute_key, self.top_users_minute_ttl_seconds)  # set expiration for rolling window metrics
         pipe.execute()
 
     def connect(self):
@@ -77,7 +80,7 @@ class RedisManager:
             self.client = redis.Redis(
                 host=self.host, port=self.port, username=self.user, password=self.password, decode_responses=True
             )
-            self.client.ping()
+            self.client.ping()  # sanity check
         except redis.ConnectionError as e:
             print(f"redis connection error: {e}")
             exit(1)
@@ -86,20 +89,25 @@ class RedisManager:
         """Update Redis analytics counters for one Wikimedia event."""
 
         try:
+            # should not happen, but just in case
             event_type = json_data.get("type")
             if event_type is None:
                 return False
 
+            # events and type counters
             self._increment_metric("events", "total")
             self._increment_metric("type", event_type)
 
+            # namespace counter
             namespace = json_data.get("namespace")
             if namespace is not None:
                 self._increment_metric("namespace", str(namespace))
 
+            # log type counter
             if event_type == "log" and json_data.get("log_type"):
                 self._increment_metric("log_type", json_data.get("log_type"))
 
+            # user counter (for top users)
             self._increment_top_user(json_data.get("user"))
 
             # edit events include additional bot/human and minor/major slices
@@ -114,6 +122,7 @@ class RedisManager:
                 elif json_data.get("minor") is False:
                     self._increment_metric("edits", "major")
 
+            # patrolled counter
             if json_data.get("bot") is True:
                 if json_data.get("patrolled") is True:
                     self._increment_metric("patrolled", "patrolled_bot")
@@ -129,36 +138,43 @@ class RedisManager:
     def print_metrics(self, option):
         """Print metrics for today, rolling windows (5m/1h), or all-time."""
 
+        # helper function to print aggregates gathered in the body of this function
         def print_aggregates(aggregates, title):
             print(f"\n=== {title} ===")
             for key in sorted(aggregates.keys()):
                 print(f"{key}: {aggregates[key]}")
 
+        # sum minute-bucket keys over the requested rolling window
         def aggregate_window(window_minutes):
-            # sum minute-bucket keys over the requested rolling window
             aggregates = {}
             current_minute = self._get_minute_bucket()
 
+            # iterate over the minutes in the window via the 'window_minutes' parameter
             for minute in range(current_minute - window_minutes + 1, current_minute + 1):
                 minute_keys = self.client.keys(f"minute:{minute}:*:*")
                 for key in minute_keys:
+                    # parse the key to get the metric group and name
                     _, _, metric_group, metric_name = key.split(":", 3)
                     agg_key = f"{metric_group}:{metric_name}"
                     aggregates[agg_key] = aggregates.get(agg_key, 0) + int(self.client.get(key) or 0)
 
             return aggregates
 
+        # sum top_users keys over the requested rolling window
         def aggregate_top_users_window(window_minutes):
             top_users = {}
             current_minute = self._get_minute_bucket()
 
+            # iterate over the minutes in the window via the 'window_minutes' parameter
             for minute in range(current_minute - window_minutes + 1, current_minute + 1):
                 key = f"top_users:minute:{minute}"
                 for user, score in self.client.zrevrange(key, 0, -1, withscores=True):
                     top_users[user] = top_users.get(user, 0) + int(score)
 
+            # sort the items returned from zrevrange by score in descending order via lambda
             return sorted(top_users.items(), key=lambda x: x[1], reverse=True)[:10]
 
+        # print top users entries
         def print_top_users(entries, title):
             print(f"\n=== {title} ===")
             if not entries:
@@ -168,7 +184,9 @@ class RedisManager:
                 print(f"{user}: {int(score)}")
 
         if self.client:
+            # depending on option parameter, print the appropriate data for that time frame
             if option == "today":
+                # gather aggregates for today and print them
                 aggregates = {}
                 today = self._get_today()
                 today_keys = self.client.keys(f"{today}:*:*")
@@ -179,6 +197,7 @@ class RedisManager:
                 print_aggregates(aggregates, "TODAY")
 
             elif option == "5m":
+                # gather aggregates for the last 5 minutes and print them, including spike score
                 aggregates = aggregate_window(5)
                 print_aggregates(aggregates, "LAST 5 MINUTES")
                 top_users = aggregate_top_users_window(5)
@@ -186,16 +205,22 @@ class RedisManager:
                 one_hour_total = aggregate_window(60).get("events:total", 0)
                 five_min_total = aggregates.get("events:total", 0)
                 if one_hour_total > 0:
+                    # if there have been edits in the last hour, calculate the spike score
+                    # baseline is the average number of edits per 5 minute window in the last hour
                     baseline_five_min = one_hour_total / 12
+
+                    # calculate the spike score as the ratio of edits in the last 5 minutes to the baselin
                     spike_score = five_min_total / baseline_five_min if baseline_five_min > 0 else 0
                     print(f"\nspike_score_5m_vs_1h_baseline: {spike_score:.2f}x\n")
 
+            # print 1 hour aggregates
             elif option == "1h":
                 aggregates = aggregate_window(60)
                 print_aggregates(aggregates, "LAST 1 HOUR")
                 top_users = aggregate_top_users_window(60)
                 print_top_users(top_users, "TOP USERS (LAST 1 HOUR)")
 
+            # print all time aggregates (again, not enough storage to go multiple days with local setup)
             elif option == "all":
                 aggregates = {}
                 all_keys = self.client.keys("all:*:*")
@@ -214,6 +239,7 @@ class RedisManager:
         else:
             print("error: not connected to redis db")
 
+    # for utility purposes
     def flush_db(self):
         """Delete all Redis keys in the current Redis database."""
         try:
